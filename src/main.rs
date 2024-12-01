@@ -1,9 +1,9 @@
-mod d00;
+mod d01;
 
 use std::env::args;
 use std::io::{stdin, Read};
 
-const CMDS: &[(&str, fn(&mut dyn Read))] = &[("d00p1", d00::run_part1)];
+const CMDS: &[(&str, fn(&mut dyn Read))] = &[("d01p1", d01::run_part1), ("d01p2", d01::run_part2)];
 
 fn find_cmd(name: &str) -> Option<fn(&mut dyn Read)> {
     for (fun_name, fun) in CMDS.iter() {
