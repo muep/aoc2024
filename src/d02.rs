@@ -50,7 +50,24 @@ fn safe_report(levels: &[u32]) -> bool {
     }
 }
 
-fn part1(input: &mut dyn Read) -> u32 {
+fn safe_report_v2(levels: &[u32]) -> bool {
+    if safe_report(levels) {
+        return true;
+    }
+
+    (0..levels.len())
+        .map(|pos| {
+            levels
+                .iter()
+                .copied()
+                .take(pos)
+                .chain(levels.iter().copied().skip(pos + 1))
+                .collect::<Vec<u32>>()
+        })
+        .any(|reduced_levels| safe_report(&reduced_levels))
+}
+
+fn part(f: fn(&[u32]) -> bool, input: &mut dyn Read) -> u32 {
     BufReader::new(input)
         .lines()
         .map(|l| {
@@ -60,7 +77,7 @@ fn part1(input: &mut dyn Read) -> u32 {
                 .map(|s| s.parse::<u32>().unwrap())
                 .collect();
 
-            if safe_report(&levels) {
+            if f(&levels) {
                 1
             } else {
                 0
@@ -69,8 +86,19 @@ fn part1(input: &mut dyn Read) -> u32 {
         .sum()
 }
 
+fn part1(input: &mut dyn Read) -> u32 {
+    part(safe_report, input)
+}
+
+fn part2(input: &mut dyn Read) -> u32 {
+    part(safe_report_v2, input)
+}
+
 pub fn run_part1(input: &mut dyn Read) {
     println!("{}", part1(input));
+}
+pub fn run_part2(input: &mut dyn Read) {
+    println!("{}", part2(input));
 }
 
 #[cfg(test)]
@@ -86,6 +114,12 @@ mod tests {
     }
 
     #[test]
+    fn test_safe_report_v2() {
+        assert!(safe_report(&[7, 6, 4, 2, 1]));
+        assert!(!safe_report(&[1, 2, 7, 8, 9]));
+    }
+
+    #[test]
     fn test_part1_example() {
         let mut f = File::open("input/d02-e.txt").unwrap();
         let safe_reports = part1(&mut f);
@@ -97,5 +131,19 @@ mod tests {
         let mut f = File::open("input/d02-f.txt").unwrap();
         let safe_reports = part1(&mut f);
         assert_eq!(safe_reports, 379);
+    }
+
+    #[test]
+    fn test_part2_example() {
+        let mut f = File::open("input/d02-e.txt").unwrap();
+        let safe_reports = part2(&mut f);
+        assert_eq!(safe_reports, 4);
+    }
+
+    #[test]
+    fn test_part2_full() {
+        let mut f = File::open("input/d02-f.txt").unwrap();
+        let safe_reports = part2(&mut f);
+        assert_eq!(safe_reports, 430);
     }
 }
