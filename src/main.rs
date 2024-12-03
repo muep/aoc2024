@@ -11,6 +11,7 @@ const CMDS: &[(&str, fn(&mut dyn Read))] = &[
     ("d02p1", d02::run_part1),
     ("d02p2", d02::run_part2),
     ("d03p1", d03::run_part1),
+    ("d03p2", d03::run_part2),
 ];
 
 fn find_cmd(name: &str) -> Option<fn(&mut dyn Read)> {
