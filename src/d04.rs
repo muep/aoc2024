@@ -81,7 +81,31 @@ fn part1(input: &mut dyn Read) -> u32 {
 }
 
 fn part2(input: &mut dyn Read) -> u32 {
-    0
+    let ws = WordSearch::load(input);
+    let mut cnt = 0u32;
+
+    for row in 1..(ws.height() - 1) {
+        for col in 1..(ws.width - 1) {
+            if ws.buf[ws.width * row as usize + col as usize] != 'A' {
+                continue;
+            }
+
+            let topleft = ws.buf[ws.width * (row - 1) + col - 1];
+            let bottomleft = ws.buf[ws.width * (row + 1) + col - 1];
+            let topright = ws.buf[ws.width * (row - 1) + col + 1];
+            let bottomright = ws.buf[ws.width * (row + 1) + col + 1];
+
+            cnt += match (topleft, bottomright, bottomleft, topright) {
+                ('M', 'S', 'M', 'S') => 1,
+                ('M', 'S', 'S', 'M') => 1,
+                ('S', 'M', 'M', 'S') => 1,
+                ('S', 'M', 'S', 'M') => 1,
+                _ => 0,
+            };
+        }
+    }
+
+    cnt
 }
 
 pub fn run_part1(input: &mut dyn Read) {
@@ -117,5 +141,19 @@ mod tests {
         let mut f = File::open("input/d04-f.txt").unwrap();
         let safe_reports = part1(&mut f);
         assert_eq!(safe_reports, 2434);
+    }
+
+    #[test]
+    fn test_part2_example() {
+        let mut f = File::open("input/d04-e.txt").unwrap();
+        let safe_reports = part2(&mut f);
+        assert_eq!(safe_reports, 9);
+    }
+
+    #[test]
+    fn test_part2_full() {
+        let mut f = File::open("input/d04-f.txt").unwrap();
+        let safe_reports = part2(&mut f);
+        assert_eq!(safe_reports, 1835);
     }
 }
