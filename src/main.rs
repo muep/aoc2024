@@ -1,6 +1,7 @@
 mod d01;
 mod d02;
 mod d03;
+mod d04;
 
 use std::env::args;
 use std::io::{stdin, Read};
@@ -12,6 +13,8 @@ const CMDS: &[(&str, fn(&mut dyn Read))] = &[
     ("d02p2", d02::run_part2),
     ("d03p1", d03::run_part1),
     ("d03p2", d03::run_part2),
+    ("d04p1", d04::run_part1),
+    ("d04p2", d04::run_part2),
 ];
 
 fn find_cmd(name: &str) -> Option<fn(&mut dyn Read)> {
