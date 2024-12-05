@@ -1,3 +1,4 @@
+mod d00;
 mod d01;
 mod d02;
 mod d03;
@@ -7,6 +8,8 @@ use std::env::args;
 use std::io::{stdin, Read};
 
 const CMDS: &[(&str, fn(&mut dyn Read))] = &[
+    ("d00p1", d00::run_part1),
+    ("d00p2", d00::run_part2),
     ("d01p1", d01::run_part1),
     ("d01p2", d01::run_part2),
     ("d02p1", d02::run_part1),
