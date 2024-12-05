@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::io::{BufRead, BufReader, Read};
 
 struct Print {
@@ -6,70 +7,98 @@ struct Print {
 }
 
 impl Print {
+    fn buf(&self) -> Vec<u8> {
+        let sz = self.updates.iter().map(|v| v.len()).max().unwrap();
+        let mut buf = Vec::with_capacity(sz);
+        buf.resize(sz, 0);
+        buf
+    }
+
     fn load(input: &mut dyn Read) -> Print {
-        let mut print = BufReader::new(input)
-            .lines()
-            .map(|l| l.unwrap())
-            .fold(
-                (
-                    Print {
-                        ordering_rules: Vec::new(),
-                        updates: Vec::new(),
-                    },
-                    true,
-                ),
-                |(mut p, collect_rules), l| {
-                    if l.is_empty() {
-                        (p, false)
-                    } else if collect_rules {
-                        let (before, after) = {
-                            let mut pieces = l.split('|').map(|a| a.parse::<u8>().unwrap());
-                            let before = pieces.next().unwrap();
-                            let after = pieces.next().unwrap();
-                            (before, after)
-                        };
-                        p.ordering_rules.push((before, after));
-                        (p, true)
-                    } else {
-                        p.updates
-                            .push(l.split(',').map(|p| p.parse::<u8>().unwrap()).collect());
-                        (p, false)
-                    }
-                },
-            )
-            .0;
-        print.ordering_rules.sort();
-        print
+        let (mut rules, updates, _) = BufReader::new(input).lines().map(|l| l.unwrap()).fold(
+            (Vec::new(), Vec::new(), true),
+            |(mut rules, mut updates, collect_rules), l| {
+                if l.is_empty() {
+                    (rules, updates, false)
+                } else if collect_rules {
+                    let (before, after) = {
+                        let mut pieces = l.split('|').map(|a| a.parse::<u8>().unwrap());
+                        let before = pieces.next().unwrap();
+                        let after = pieces.next().unwrap();
+                        (before, after)
+                    };
+                    rules.push((before, after));
+                    (rules, updates, true)
+                } else {
+                    updates.push(l.split(',').map(|p| p.parse::<u8>().unwrap()).collect());
+                    (rules, updates, false)
+                }
+            },
+        );
+
+        rules.sort();
+        Print {
+            ordering_rules: rules,
+            updates: updates,
+        }
     }
 }
 
-fn is_correct_update(rules: &[(u8, u8)], update: &[u8]) -> bool {
-    for pair in update.windows(2) {
-        let before = pair[0];
-        let after = pair[1];
-        for (expected_before, expected_after) in rules.iter().copied() {
-            if (before, after) == (expected_after, expected_before) {
-                return false;
+fn sort_by_rules(rules: &[(u8, u8)], buf: &mut [u8]) {
+    buf.sort_by(|a, b| {
+        if a == b {
+            return Ordering::Equal;
+        }
+
+        for (before, after) in rules.iter() {
+            if (before, after) == (a, b) {
+                return Ordering::Less;
+            }
+
+            if (before, after) == (b, a) {
+                return Ordering::Greater;
             }
         }
-    }
 
-    true
+        a.cmp(&b)
+    })
+}
+
+fn is_correct_update(rules: &[(u8, u8)], update: &[u8], buf: &mut [u8]) -> bool {
+    buf.copy_from_slice(update);
+    sort_by_rules(rules, buf);
+    buf == update
 }
 
 fn part1(input: &mut dyn Read) -> u32 {
     let print = Print::load(input);
+    let mut buf = print.buf();
 
     print
         .updates
         .iter()
-        .filter(|u| is_correct_update(&print.ordering_rules, u.as_ref()))
+        .filter(|u| is_correct_update(&print.ordering_rules, u.as_ref(), &mut buf[0..u.len()]))
         .map(|u| u[u.len() / 2] as u32)
         .sum()
 }
 
 fn part2(input: &mut dyn Read) -> u32 {
-    BufReader::new(input).lines().count() as u32
+    let print = Print::load(input);
+    let mut buf = print.buf();
+
+    let Print {
+        ordering_rules: rules,
+        updates,
+    } = print;
+
+    updates
+        .into_iter()
+        .filter(|u| !is_correct_update(&rules, u.as_ref(), &mut buf[0..u.len()]))
+        .map(|mut u| {
+            sort_by_rules(&rules, &mut u);
+            u[u.len() / 2] as u32}
+        )
+        .sum()
 }
 
 pub fn run_part1(input: &mut dyn Read) {
@@ -109,15 +138,15 @@ mod tests {
 
     #[test]
     fn test_part2_example() {
-        let mut f = File::open("input/d00-e.txt").unwrap();
+        let mut f = File::open("input/d05-e.txt").unwrap();
         let safe_reports = part2(&mut f);
-        assert_eq!(safe_reports, 0);
+        assert_eq!(safe_reports, 123);
     }
 
     #[test]
     fn test_part2_full() {
-        let mut f = File::open("input/d00-f.txt").unwrap();
+        let mut f = File::open("input/d05-f.txt").unwrap();
         let safe_reports = part2(&mut f);
-        assert_eq!(safe_reports, 0);
+        assert_eq!(safe_reports, 5184);
     }
 }
