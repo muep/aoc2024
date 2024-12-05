@@ -96,8 +96,8 @@ fn part2(input: &mut dyn Read) -> u32 {
         .filter(|u| !is_correct_update(&rules, u.as_ref(), &mut buf[0..u.len()]))
         .map(|mut u| {
             sort_by_rules(&rules, &mut u);
-            u[u.len() / 2] as u32}
-        )
+            u[u.len() / 2] as u32
+        })
         .sum()
 }
 
