@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 
 struct Print {
-    ordering_rules: Vec<(u8, u8)>,
+    ordering_rules: HashMap<(u8, u8), Ordering>,
     updates: Vec<Vec<u8>>,
 }
 
@@ -15,8 +16,8 @@ impl Print {
     }
 
     fn load(input: &mut dyn Read) -> Print {
-        let (mut rules, updates, _) = BufReader::new(input).lines().map(|l| l.unwrap()).fold(
-            (Vec::new(), Vec::new(), true),
+        let (rules, updates, _) = BufReader::new(input).lines().map(|l| l.unwrap()).fold(
+            (HashMap::new(), Vec::new(), true),
             |(mut rules, mut updates, collect_rules), l| {
                 if l.is_empty() {
                     (rules, updates, false)
@@ -27,7 +28,8 @@ impl Print {
                         let after = pieces.next().unwrap();
                         (before, after)
                     };
-                    rules.push((before, after));
+                    rules.insert((before, after), Ordering::Less);
+                    rules.insert((after, before), Ordering::Greater);
                     (rules, updates, true)
                 } else {
                     updates.push(l.split(',').map(|p| p.parse::<u8>().unwrap()).collect());
@@ -36,7 +38,6 @@ impl Print {
             },
         );
 
-        rules.sort();
         Print {
             ordering_rules: rules,
             updates: updates,
@@ -44,27 +45,20 @@ impl Print {
     }
 }
 
-fn sort_by_rules(rules: &[(u8, u8)], buf: &mut [u8]) {
+fn sort_by_rules(rules: &HashMap<(u8, u8), Ordering>, buf: &mut [u8]) {
     buf.sort_by(|a, b| {
         if a == b {
             return Ordering::Equal;
         }
 
-        for (before, after) in rules.iter() {
-            if (before, after) == (a, b) {
-                return Ordering::Less;
-            }
-
-            if (before, after) == (b, a) {
-                return Ordering::Greater;
-            }
+        match rules.get(&(*a, *b)) {
+            Some(o) => *o,
+            None => a.cmp(b),
         }
-
-        a.cmp(&b)
     })
 }
 
-fn is_correct_update(rules: &[(u8, u8)], update: &[u8], buf: &mut [u8]) -> bool {
+fn is_correct_update(rules: &HashMap<(u8, u8), Ordering>, update: &[u8], buf: &mut [u8]) -> bool {
     buf.copy_from_slice(update);
     sort_by_rules(rules, buf);
     buf == update
@@ -86,16 +80,12 @@ fn part2(input: &mut dyn Read) -> u32 {
     let print = Print::load(input);
     let mut buf = print.buf();
 
-    let Print {
-        ordering_rules: rules,
-        updates,
-    } = print;
-
-    updates
+    print
+        .updates
         .into_iter()
-        .filter(|u| !is_correct_update(&rules, u.as_ref(), &mut buf[0..u.len()]))
+        .filter(|u| !is_correct_update(&print.ordering_rules, u.as_ref(), &mut buf[0..u.len()]))
         .map(|mut u| {
-            sort_by_rules(&rules, &mut u);
+            sort_by_rules(&print.ordering_rules, &mut u);
             u[u.len() / 2] as u32
         })
         .sum()
@@ -118,7 +108,7 @@ mod tests {
     fn test_load() {
         let mut f = File::open("input/d05-e.txt").unwrap();
         let p = Print::load(&mut f);
-        assert_eq!(p.ordering_rules.len(), 21);
+        assert_eq!(p.ordering_rules.len(), 42);
         assert_eq!(p.updates.len(), 6);
     }
 
