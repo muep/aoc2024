@@ -4,6 +4,7 @@ use std::io::{BufRead, BufReader, Read};
 enum Op {
     Add,
     Mul,
+    Cat,
 }
 
 impl Op {
@@ -11,6 +12,7 @@ impl Op {
         match self {
             Op::Add => a + b,
             Op::Mul => a * b,
+            Op::Cat => format!("{a}{b}").parse::<u64>().unwrap(),
         }
     }
 }
@@ -28,7 +30,7 @@ fn equation_from_line(line: &str) -> (u64, Vec<u64>) {
     (result, params)
 }
 
-fn op_candidates(sz: usize) -> Vec<Vec<Op>> {
+fn op_candidates_v1(sz: usize) -> Vec<Vec<Op>> {
     (0..(1u64 << sz))
         .map(|n| {
             (0..sz)
@@ -41,6 +43,33 @@ fn op_candidates(sz: usize) -> Vec<Vec<Op>> {
         .collect()
 }
 
+fn op_candidates_v2_step(prev: Vec<Vec<Op>>) -> Vec<Vec<Op>> {
+    let ops = [Op::Add, Op::Mul, Op::Cat];
+
+    if prev.is_empty() {
+        return ops.into_iter().map(|op| vec![op]).collect();
+    }
+
+    ops.into_iter()
+        .map(|op| {
+            prev.iter()
+                .map(|op_sequence| {
+                    let mut v = op_sequence.clone();
+                    v.push(op);
+                    v
+                })
+                .collect::<Vec<Vec<Op>>>()
+        })
+        .fold(Vec::new(), |mut a, mut b| {
+            a.append(&mut b);
+            a
+        })
+}
+
+fn op_candidates_v2(sz: usize) -> Vec<Vec<Op>> {
+    (0..sz).fold(Vec::new(), |p, _| op_candidates_v2_step(p))
+}
+
 fn apply_params_and_ops(params: &[u64], ops: &[Op]) -> u64 {
     params[1..]
         .iter()
@@ -48,15 +77,25 @@ fn apply_params_and_ops(params: &[u64], ops: &[Op]) -> u64 {
         .fold(params[0], |acc, (param, op)| op.apply(acc, *param))
 }
 
-fn part1(input: &mut dyn Read) -> u64 {
-    BufReader::new(input).lines().map(|l| equation_from_line(&l.unwrap()))
-        .filter(|(result, params)| op_candidates(params.len() - 1).into_iter().any(|ops| apply_params_and_ops(params, &ops) == *result))
+fn part(op_candidates: fn(usize) -> Vec<Vec<Op>>, input: &mut dyn Read) -> u64 {
+    BufReader::new(input)
+        .lines()
+        .map(|l| equation_from_line(&l.unwrap()))
+        .filter(|(result, params)| {
+            op_candidates(params.len() - 1)
+                .into_iter()
+                .any(|ops| apply_params_and_ops(params, &ops) == *result)
+        })
         .map(|(r, _)| r)
         .sum()
 }
 
-fn part2(input: &mut dyn Read) -> u32 {
-    BufReader::new(input).lines().count() as u32
+fn part1(input: &mut dyn Read) -> u64 {
+    part(op_candidates_v1, input)
+}
+
+fn part2(input: &mut dyn Read) -> u64 {
+    part(op_candidates_v2, input)
 }
 
 pub fn run_part1(input: &mut dyn Read) {
@@ -90,18 +129,18 @@ mod tests {
     }
 
     #[test]
-    fn test_op_candidates_1() {
+    fn test_op_candidates_v1_1() {
         let expected: HashSet<Vec<Op>> =
             HashSet::from_iter(vec![vec![Op::Add], vec![Op::Mul]].into_iter());
-        let actual: HashSet<Vec<Op>> = HashSet::from_iter(op_candidates(1).into_iter());
+        let actual: HashSet<Vec<Op>> = HashSet::from_iter(op_candidates_v1(1).into_iter());
 
         assert_eq!(expected, actual)
     }
 
     #[test]
-    fn test_op_candidates_3() {
-        let expected: HashSet<Vec<Op>> =
-            HashSet::from_iter(vec![
+    fn test_op_candidates_v1_3() {
+        let expected: HashSet<Vec<Op>> = HashSet::from_iter(
+            vec![
                 vec![Op::Add, Op::Add, Op::Add],
                 vec![Op::Add, Op::Add, Op::Mul],
                 vec![Op::Add, Op::Mul, Op::Add],
@@ -110,8 +149,31 @@ mod tests {
                 vec![Op::Mul, Op::Add, Op::Mul],
                 vec![Op::Mul, Op::Mul, Op::Add],
                 vec![Op::Mul, Op::Mul, Op::Mul],
-            ].into_iter());
-        let actual: HashSet<Vec<Op>> = HashSet::from_iter(op_candidates(3).into_iter());
+            ]
+            .into_iter(),
+        );
+        let actual: HashSet<Vec<Op>> = HashSet::from_iter(op_candidates_v1(3).into_iter());
+
+        assert_eq!(expected, actual)
+    }
+
+    #[test]
+    fn test_op_candidatesv2_2() {
+        let expected: HashSet<Vec<Op>> = HashSet::from_iter(
+            vec![
+                vec![Op::Add, Op::Add],
+                vec![Op::Add, Op::Mul],
+                vec![Op::Add, Op::Cat],
+                vec![Op::Mul, Op::Add],
+                vec![Op::Mul, Op::Mul],
+                vec![Op::Mul, Op::Cat],
+                vec![Op::Cat, Op::Add],
+                vec![Op::Cat, Op::Mul],
+                vec![Op::Cat, Op::Cat],
+            ]
+            .into_iter(),
+        );
+        let actual: HashSet<Vec<Op>> = HashSet::from_iter(op_candidates_v2(2).into_iter());
 
         assert_eq!(expected, actual)
     }
@@ -132,15 +194,15 @@ mod tests {
 
     #[test]
     fn test_part2_example() {
-        let mut f = File::open("input/d00-e.txt").unwrap();
+        let mut f = File::open("input/d07-e.txt").unwrap();
         let result = part2(&mut f);
-        assert_eq!(result, 0);
+        assert_eq!(result, 11387);
     }
 
     #[test]
     fn test_part2_full() {
-        let mut f = File::open("input/d00-f.txt").unwrap();
+        let mut f = File::open("input/d07-f.txt").unwrap();
         let result = part2(&mut f);
-        assert_eq!(result, 0);
+        assert_eq!(result, 104824810233437);
     }
 }
