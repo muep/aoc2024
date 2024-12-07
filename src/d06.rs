@@ -175,6 +175,8 @@ fn part1(input: &mut dyn Read) -> (u32, Vec<Guard>, Map) {
 }
 
 fn part2(input: &mut dyn Read) -> u32 {
+    use rayon::prelude::*;
+
     let (_, guards, map) = part1(input);
 
     let starting_guard = *guards.first().unwrap();
@@ -188,10 +190,12 @@ fn part2(input: &mut dyn Read) -> u32 {
                 Some(g.pos)
             }
         })
-        .collect::<HashSet<Pos>>();
+        .collect::<HashSet<Pos>>()
+        .into_iter()
+        .collect::<Vec<Pos>>();
 
     candidates
-        .into_iter()
+        .into_par_iter()
         .filter(|extra_obstruction| {
             let mut m2 = map.clone();
             m2.places[extra_obstruction.row as usize * m2.width + extra_obstruction.col as usize] =
