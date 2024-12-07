@@ -1,4 +1,3 @@
-use crate::d06::Place::Obstruction;
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Read};
 use std::iter::successors;
@@ -7,7 +6,7 @@ use std::iter::successors;
 enum Place {
     Outside,
     Obstruction,
-    Traversable(u8),
+    Traversable,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -42,19 +41,6 @@ impl Map {
         }
 
         self.places[row as usize * self.width + col as usize]
-    }
-
-    fn traverse(&mut self, Pos { col, row }: Pos) {
-        let height = self.places.len() / self.width;
-
-        if col < 0 || col >= self.width as i16 || row < 0 || row >= height as i16 {
-            return;
-        }
-
-        if let Place::Traversable(n) = self.places[row as usize * self.width + col as usize] {
-            self.places[row as usize * self.width + col as usize] =
-                Place::Traversable(n.saturating_add(1));
-        }
     }
 }
 
@@ -99,14 +85,8 @@ fn load(input: &mut dyn Read) -> (Guard, Map) {
                     .unwrap_or(g);
 
                 places.extend(line.into_iter().map(|b| match b {
-                    b'.' => Place::Traversable(0),
                     b'#' => Place::Obstruction,
-                    b'^' => Place::Traversable(1),
-                    b'v' => Place::Traversable(1),
-                    b'<' => Place::Traversable(1),
-                    b'>' => Place::Traversable(1),
-
-                    _ => panic!("Unexpected map content {b:?}"),
+                    _ => Place::Traversable,
                 }));
                 (width, places, guard)
             },
@@ -136,7 +116,7 @@ fn step_candidates(s: Speed) -> [Speed; 4] {
     [s, s1, s2, s3]
 }
 
-fn step(g: Guard, mut m: Map) -> (Guard, Map) {
+fn step(g: Guard, m: &Map) -> Guard {
     let (spd, pos) = step_candidates(g.spd)
         .into_iter()
         .map(|spd| (spd, forward(g.pos, spd)))
@@ -146,12 +126,12 @@ fn step(g: Guard, mut m: Map) -> (Guard, Map) {
         })
         .expect("Did not find a suitable direction");
 
-    m.traverse(pos);
-
-    (Guard { spd, pos }, m)
+    Guard { spd, pos }
 }
 
-fn printout(guard: Guard, map: &Map) {
+fn printout(guards: &[Guard], map: &Map) {
+    let guard = guards.last().unwrap();
+    let position_set: HashSet<Pos> = HashSet::from_iter(guards.iter().map(|g| g.pos));
     let Speed { down, right } = guard.spd;
     let height = map.places.len() / map.width;
     for row in 0..height as i16 {
@@ -166,13 +146,12 @@ fn printout(guard: Guard, map: &Map) {
                     (-1, 0) => '^',
                     _ => '@',
                 }
+            } else if position_set.contains(&pos) {
+                'X'
             } else {
                 match map.get(pos) {
                     Place::Obstruction => '#',
-                    Place::Traversable(0) => '.',
-                    Place::Traversable(1) => '-',
-                    Place::Traversable(2) => '+',
-                    Place::Traversable(_) => '*',
+                    Place::Traversable => '.',
                     _ => panic!("Should not print outside the map"),
                 }
             };
@@ -183,54 +162,9 @@ fn printout(guard: Guard, map: &Map) {
     println!();
 }
 
-fn printout_with_loopers(guard: Guard, map: &Map, loopers: HashSet<Pos>) {
-    let Speed { down, right } = guard.spd;
-    let height = map.places.len() / map.width;
-    for row in 0..height as i16 {
-        for col in 0..map.width as i16 {
-            let pos = Pos { col, row };
-
-            let c = if pos == guard.pos {
-                match (down, right) {
-                    (0, 1) => '>',
-                    (0, -1) => '<',
-                    (1, 0) => 'v',
-                    (-1, 0) => '^',
-                    _ => '@',
-                }
-            } else if loopers.contains(&pos) {
-                'Ø'
-            } else {
-                match map.get(pos) {
-                    Place::Obstruction => '#',
-                    Place::Traversable(0) => '.',
-                    Place::Traversable(1) => '-',
-                    Place::Traversable(2) => '+',
-                    Place::Traversable(_) => '*',
-                    _ => panic!("Should not print outside the map"),
-                }
-            };
-            print!("{c}")
-        }
-        println!();
-    }
-    println!();
-}
-
-fn stat(map: &Map) -> (usize, usize, usize) {
-    map.places.iter().copied().fold(
-        (0usize, 0usize, 0usize),
-        |(obstructions, unvisited, visited), p| match p {
-            Place::Obstruction => (obstructions + 1, unvisited, visited),
-            Place::Traversable(0) => (obstructions, unvisited + 1, visited),
-            Place::Traversable(_) => (obstructions, unvisited, visited + 1),
-            _ => panic!("not expected"),
-        },
-    )
-}
-
+/*
 fn run_to_completion(state: (Guard, Map), history: HashSet<Guard>) -> (bool, Guard, Map) {
-    successors(Some(state), |(g, m)| Some(step(*g, m.clone())))
+    successors(Some(state), |(g, m)| Some(step(*g, m)))
         .scan((history, false), |(history, did_loop), (g, m)| {
             if *did_loop {
                 return None;
@@ -247,17 +181,21 @@ fn run_to_completion(state: (Guard, Map), history: HashSet<Guard>) -> (bool, Gua
         })
         .last()
         .unwrap()
+}*/
+
+fn part1(input: &mut dyn Read) -> (u32, Vec<Guard>, Map) {
+    let (guard, map) = load(input);
+
+    let guards = successors(Some(guard), |g| Some(step(*g, &map)))
+        .take_while(|g| map.get(g.pos) != Place::Outside)
+        .collect::<Vec<Guard>>();
+
+    let position_set: HashSet<Pos> = HashSet::from_iter(guards.iter().map(|g| g.pos));
+
+    (position_set.len() as u32, guards, map)
 }
 
-fn part1(input: &mut dyn Read) -> ((u32, u32, u32), Guard, Map) {
-    let (guard, map) = successors(Some(load(input)), |(g, m)| Some(step(*g, m.clone())))
-        .take_while(|(g, m)| m.get(g.pos) != Place::Outside)
-        .last()
-        .unwrap();
-    let (o, u, v) = stat(&map);
-    ((o as u32, u as u32, v as u32), guard, map)
-}
-
+/*
 fn part2(input: &mut dyn Read) -> u32 {
     let (g0, m) = load(input);
     let start_pos = g0.pos;
@@ -286,12 +224,15 @@ fn part2(input: &mut dyn Read) -> u32 {
 
         loopers
         .len() as u32
+}*/
+fn part2(input: &mut dyn Read) -> u32 {
+    BufReader::new(input).lines().count() as u32
 }
 
 pub fn run_part1(input: &mut dyn Read) {
-    let ((obstructions, unvisited, visited), guard, map) = part1(input);
-    printout(guard, &map);
-    println!("obstructed: {obstructions}\nunvisited: {unvisited}\nvisited: {visited}");
+    let (visited, guards, map) = part1(input);
+    printout(&guards, &map);
+    println!("visited: {visited}");
 }
 
 pub fn run_part2(input: &mut dyn Read) {
@@ -315,21 +256,21 @@ mod tests {
         assert_eq!(guard.pos.row, 6);
         assert_eq!(
             map.places[map.width * guard.pos.row as usize + guard.pos.col as usize],
-            Place::Traversable(1)
+            Place::Traversable
         );
     }
 
     #[test]
     fn test_part1_example() {
         let mut f = File::open("input/d06-e.txt").unwrap();
-        let ((_, _, result), _, _) = part1(&mut f);
+        let (result, _, _) = part1(&mut f);
         assert_eq!(result, 41);
     }
 
     #[test]
     fn test_part1_full() {
         let mut f = File::open("input/d06-f.txt").unwrap();
-        let ((_, _, result), _, _) = part1(&mut f);
+        let (result, _, _) = part1(&mut f);
         assert_eq!(result, 5086);
     }
 
