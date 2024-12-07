@@ -1,4 +1,14 @@
 use std::io::{BufRead, BufReader, Read};
+use std::iter::successors;
+
+fn int_sz(n: u64) -> u32 {
+    successors(Some(10u64), |f| Some(f * 10))
+        .enumerate()
+        .find(|(_, top)| n < *top)
+        .unwrap()
+        .0 as u32
+        + 1
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum Op {
@@ -12,7 +22,7 @@ impl Op {
         match self {
             Op::Add => a + b,
             Op::Mul => a * b,
-            Op::Cat => format!("{a}{b}").parse::<u64>().unwrap(),
+            Op::Cat => a * 10u64.pow(int_sz(b)) + b,
         }
     }
 }
@@ -137,6 +147,15 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
     use std::fs::File;
+
+    #[test]
+    fn test_int_sz() {
+        assert_eq!(int_sz(9), 1);
+        assert_eq!(int_sz(10), 2);
+        assert_eq!(int_sz(11), 2);
+        assert_eq!(int_sz(99), 2);
+        assert_eq!(int_sz(100), 3);
+    }
 
     #[test]
     fn test_equation_from_line() {
