@@ -70,11 +70,27 @@ fn op_candidates_v2(sz: usize) -> Vec<Vec<Op>> {
     (0..sz).fold(Vec::new(), |p, _| op_candidates_v2_step(p))
 }
 
-fn apply_params_and_ops(params: &[u64], ops: &[Op]) -> u64 {
+fn check_params_and_ops(params: &[u64], ops: &[Op], result: u64) -> bool {
     params[1..]
         .iter()
         .zip(ops)
-        .fold(params[0], |acc, (param, op)| op.apply(acc, *param))
+        .scan((false, params[0]), |(terminate, acc), (param, op)| {
+            *acc = op.apply(*acc, *param);
+
+            let had_terminate = *terminate;
+
+            if *acc > result {
+                *terminate = true;
+            }
+
+            if had_terminate {
+                None
+            } else {
+                Some(*acc)
+            }
+        })
+        .last()
+        == Some(result)
 }
 
 fn part(op_candidates: fn(usize) -> Vec<Vec<Op>>, input: &mut dyn Read) -> u64 {
@@ -84,7 +100,7 @@ fn part(op_candidates: fn(usize) -> Vec<Vec<Op>>, input: &mut dyn Read) -> u64 {
         .filter(|(result, params)| {
             op_candidates(params.len() - 1)
                 .into_iter()
-                .any(|ops| apply_params_and_ops(params, &ops) == *result)
+                .any(|ops| check_params_and_ops(params, &ops, *result))
         })
         .map(|(r, _)| r)
         .sum()
@@ -121,10 +137,23 @@ mod tests {
     }
 
     #[test]
-    fn test_apply() {
-        assert_eq!(
-            apply_params_and_ops(&[81, 40, 27], &[Op::Add, Op::Mul]),
+    fn test_check_1() {
+        assert!(check_params_and_ops(
+            &[81, 40, 27],
+            &[Op::Add, Op::Mul],
             3267
+        ));
+    }
+
+    #[test]
+    fn test_check_2() {
+        assert_eq!(
+            check_params_and_ops(
+                &[89, 4, 78, 6, 1],
+                &[Op::Mul, Op::Add, Op::Mul, Op::Add],
+                2604
+            ),
+            false
         );
     }
 
@@ -176,6 +205,17 @@ mod tests {
         let actual: HashSet<Vec<Op>> = HashSet::from_iter(op_candidates_v2(2).into_iter());
 
         assert_eq!(expected, actual)
+    }
+
+    #[test]
+    fn test_size() {
+        let mut f = File::open("input/d07-f.txt").unwrap();
+        let max_len = BufReader::new(&mut f)
+            .lines()
+            .map(|l| equation_from_line(&l.unwrap()).1.len())
+            .max()
+            .unwrap();
+        assert_eq!(max_len, 12);
     }
 
     #[test]
