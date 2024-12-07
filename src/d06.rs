@@ -162,27 +162,6 @@ fn printout(guards: &[Guard], map: &Map) {
     println!();
 }
 
-/*
-fn run_to_completion(state: (Guard, Map), history: HashSet<Guard>) -> (bool, Guard, Map) {
-    successors(Some(state), |(g, m)| Some(step(*g, m)))
-        .scan((history, false), |(history, did_loop), (g, m)| {
-            if *did_loop {
-                return None;
-            }
-
-            *did_loop = history.contains(&g);
-            history.insert(g);
-
-            if m.get(g.pos) == Place::Outside {
-                None
-            } else {
-                Some((*did_loop, g, m))
-            }
-        })
-        .last()
-        .unwrap()
-}*/
-
 fn part1(input: &mut dyn Read) -> (u32, Vec<Guard>, Map) {
     let (guard, map) = load(input);
 
@@ -195,38 +174,43 @@ fn part1(input: &mut dyn Read) -> (u32, Vec<Guard>, Map) {
     (position_set.len() as u32, guards, map)
 }
 
-/*
 fn part2(input: &mut dyn Read) -> u32 {
-    let (g0, m) = load(input);
-    let start_pos = g0.pos;
-    let (_,loopers) = successors(Some((g0, m.clone())), |(g, m)| Some(step(*g, m.clone())))
-        .take_while(|(g, m)| m.get(g.pos) != Place::Outside)
-        .fold(
-            (HashSet::new(), HashSet::new()),
-            |(mut past, mut loopers), (g, m)| {
-                let fwd_pos = forward(g.pos, g.spd);
+    let (_, guards, map) = part1(input);
 
-                if fwd_pos != start_pos {
-                    if let Place::Traversable(_) = m.get(fwd_pos) {
-                        let mut m2 = m.clone();
-                        m2.places[fwd_pos.row as usize * m2.width + fwd_pos.col as usize] =
-                            Obstruction;
-                        if let (true, _, _) = run_to_completion((g0, m2), HashSet::new()) {
-                            loopers.insert(fwd_pos);
-                        }
-                    }
+    let starting_guard = *guards.first().unwrap();
+
+    let candidates = guards
+        .into_iter()
+        .filter_map(|g| {
+            if g.pos == starting_guard.pos {
+                None
+            } else {
+                Some(g.pos)
+            }
+        })
+        .collect::<HashSet<Pos>>();
+
+    candidates
+        .into_iter()
+        .filter(|extra_obstruction| {
+            let mut m2 = map.clone();
+            m2.places[extra_obstruction.row as usize * m2.width + extra_obstruction.col as usize] =
+                Place::Obstruction;
+
+            let mut guards = HashSet::new();
+            for guard in successors(Some(starting_guard), |g| Some(step(*g, &m2)))
+                .take_while(|g| map.get(g.pos) != Place::Outside)
+            {
+                if guards.contains(&guard) {
+                    return true;
                 }
 
-                past.insert(g);
-                (past, loopers)
-            },
-        );
+                guards.insert(guard);
+            }
 
-        loopers
-        .len() as u32
-}*/
-fn part2(input: &mut dyn Read) -> u32 {
-    BufReader::new(input).lines().count() as u32
+            false
+        })
+        .count() as u32
 }
 
 pub fn run_part1(input: &mut dyn Read) {
@@ -285,6 +269,6 @@ mod tests {
     fn test_part2_full() {
         let mut f = File::open("input/d06-f.txt").unwrap();
         let result = part2(&mut f);
-        assert_eq!(result, 1831);
+        assert_eq!(result, 1770);
     }
 }
