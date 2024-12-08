@@ -95,11 +95,11 @@ fn antinodes2(
         row: row1,
         col: col1,
     }: Pos,
-) -> [Pos; 2] {
+) -> Vec<Pos> {
     let row_diff = row1 - row0;
     let col_diff = col1 - col0;
 
-    [
+    vec![
         Pos {
             row: row1 + row_diff,
             col: col1 + col_diff,
@@ -137,6 +137,55 @@ fn antinodes(antennas: &[Pos]) -> Vec<Pos> {
         .collect()
 }
 
+fn antinodesn(
+    height: i16,
+    width: i16,
+    Pos {
+        row: row0,
+        col: col0,
+    }: Pos,
+    Pos {
+        row: row1,
+        col: col1,
+    }: Pos,
+) -> Vec<Pos> {
+    (0..height)
+        .flat_map(|row| (0..width).map(move |col| Pos { col, row }))
+        .filter(|Pos { row, col }| {
+            let dcol = col1 - col0;
+            let drow = row1 - row0;
+
+            drow * (col - col0) + dcol * (row0 - row) == 0
+        })
+        .collect()
+}
+
+fn antinodes_part2(height: i16, width: i16, antennas: &[Pos]) -> Vec<Pos> {
+    antennas
+        .iter()
+        .copied()
+        .map(|antenna0| {
+            antennas
+                .iter()
+                .copied()
+                .filter_map(|antenna1| {
+                    if antenna0 == antenna1 {
+                        None
+                    } else {
+                        Some((antenna0, antenna1))
+                    }
+                })
+                .collect::<Vec<(Pos, Pos)>>()
+        })
+        .fold(Vec::new(), |mut a, mut b| {
+            a.append(&mut b);
+            a
+        })
+        .into_iter()
+        .flat_map(|(a0, a1)| antinodesn(height, width, a0, a1))
+        .collect()
+}
+
 fn part1(input: &mut dyn Read) -> u32 {
     let w = load(input);
 
@@ -150,7 +199,15 @@ fn part1(input: &mut dyn Read) -> u32 {
 }
 
 fn part2(input: &mut dyn Read) -> u32 {
-    BufReader::new(input).lines().count() as u32
+    let w = load(input);
+
+    let antinodes = w
+        .antennas
+        .iter()
+        .flat_map(|(_, antennas)| antinodes_part2(w.height, w.width, antennas))
+        .filter(|p| w.contains(*p))
+        .collect::<HashSet<Pos>>();
+    antinodes.len() as u32
 }
 
 pub fn run_part1(input: &mut dyn Read) {
@@ -209,6 +266,23 @@ mod tests {
     }
 
     #[test]
+    fn test_andinodesn() {
+        let nodes = antinodesn(10, 10, Pos { row: 0, col: 0 }, Pos { row: 1, col: 3 })
+            .into_iter()
+            .collect::<HashSet<Pos>>();
+        let expected = [
+            Pos { row: 0, col: 0 },
+            Pos { row: 1, col: 3 },
+            Pos { row: 2, col: 6 },
+            Pos { row: 3, col: 9 },
+        ]
+        .into_iter()
+        .collect::<HashSet<Pos>>();
+
+        assert_eq!(nodes, expected);
+    }
+
+    #[test]
     fn test_part1_example() {
         let mut f = File::open("input/d08-e.txt").unwrap();
         let result = part1(&mut f);
@@ -224,15 +298,15 @@ mod tests {
 
     #[test]
     fn test_part2_example() {
-        let mut f = File::open("input/d00-e.txt").unwrap();
+        let mut f = File::open("input/d08-e.txt").unwrap();
         let result = part2(&mut f);
-        assert_eq!(result, 0);
+        assert_eq!(result, 34);
     }
 
     #[test]
     fn test_part2_full() {
-        let mut f = File::open("input/d00-f.txt").unwrap();
+        let mut f = File::open("input/d08-f.txt").unwrap();
         let result = part2(&mut f);
-        assert_eq!(result, 0);
+        assert_eq!(result, 1417);
     }
 }
