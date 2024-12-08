@@ -71,7 +71,6 @@ fn load(input: &mut dyn Read) -> World {
                                 )],
                             ),
                         });
-
                 (
                     height + 1,
                     width.max(line.len() as i16),
@@ -87,6 +86,8 @@ fn load(input: &mut dyn Read) -> World {
 }
 
 fn antinodes2(
+    height: i16,
+    width: i16,
     Pos {
         row: row0,
         col: col0,
@@ -99,7 +100,7 @@ fn antinodes2(
     let row_diff = row1 - row0;
     let col_diff = col1 - col0;
 
-    vec![
+    [
         Pos {
             row: row1 + row_diff,
             col: col1 + col_diff,
@@ -109,32 +110,9 @@ fn antinodes2(
             col: col0 - col_diff,
         },
     ]
-}
-
-fn antinodes(antennas: &[Pos]) -> Vec<Pos> {
-    antennas
-        .iter()
-        .copied()
-        .map(|antenna0| {
-            antennas
-                .iter()
-                .copied()
-                .filter_map(|antenna1| {
-                    if antenna0 == antenna1 {
-                        None
-                    } else {
-                        Some((antenna0, antenna1))
-                    }
-                })
-                .collect::<Vec<(Pos, Pos)>>()
-        })
-        .fold(Vec::new(), |mut a, mut b| {
-            a.append(&mut b);
-            a
-        })
-        .into_iter()
-        .flat_map(|(a0, a1)| antinodes2(a0, a1))
-        .collect()
+    .into_iter()
+    .filter(|Pos { col, row }| *col >= 0 && *row >= 0 && *col < width && *row < height)
+    .collect()
 }
 
 fn antinodesn(
@@ -160,11 +138,16 @@ fn antinodesn(
         .collect()
 }
 
-fn antinodes_part2(height: i16, width: i16, antennas: &[Pos]) -> Vec<Pos> {
+fn antinodes(
+    height: i16,
+    width: i16,
+    an_for_pair: fn(i16, i16, Pos, Pos) -> Vec<Pos>,
+    antennas: &[Pos],
+) -> Vec<Pos> {
     antennas
         .iter()
         .copied()
-        .map(|antenna0| {
+        .flat_map(|antenna0| {
             antennas
                 .iter()
                 .copied()
@@ -177,12 +160,7 @@ fn antinodes_part2(height: i16, width: i16, antennas: &[Pos]) -> Vec<Pos> {
                 })
                 .collect::<Vec<(Pos, Pos)>>()
         })
-        .fold(Vec::new(), |mut a, mut b| {
-            a.append(&mut b);
-            a
-        })
-        .into_iter()
-        .flat_map(|(a0, a1)| antinodesn(height, width, a0, a1))
+        .flat_map(|(a0, a1)| an_for_pair(height, width, a0, a1))
         .collect()
 }
 
@@ -192,7 +170,7 @@ fn part1(input: &mut dyn Read) -> u32 {
     let antinodes = w
         .antennas
         .iter()
-        .flat_map(|(_, antennas)| antinodes(antennas))
+        .flat_map(|(_, antennas)| antinodes(w.height, w.width, antinodes2, antennas))
         .filter(|p| w.contains(*p))
         .collect::<HashSet<Pos>>();
     antinodes.len() as u32
@@ -204,7 +182,7 @@ fn part2(input: &mut dyn Read) -> u32 {
     let antinodes = w
         .antennas
         .iter()
-        .flat_map(|(_, antennas)| antinodes_part2(w.height, w.width, antennas))
+        .flat_map(|(_, antennas)| antinodes(w.height, w.width, antinodesn, antennas))
         .filter(|p| w.contains(*p))
         .collect::<HashSet<Pos>>();
     antinodes.len() as u32
@@ -252,13 +230,13 @@ mod tests {
     #[test]
     fn test_antinodes2() {
         assert_eq!(
-            antinodes2(Pos { row: 2, col: 4 }, Pos { row: 2, col: 6 })
+            antinodes2(10, 10, Pos { row: 2, col: 4 }, Pos { row: 2, col: 6 })
                 .into_iter()
                 .collect::<HashSet<Pos>>(),
             HashSet::from([Pos { row: 2, col: 2 }, Pos { row: 2, col: 8 }])
         );
         assert_eq!(
-            antinodes2(Pos { row: 4, col: 2 }, Pos { row: 7, col: 2 })
+            antinodes2(11, 11, Pos { row: 4, col: 2 }, Pos { row: 7, col: 2 })
                 .into_iter()
                 .collect::<HashSet<Pos>>(),
             HashSet::from([Pos { row: 1, col: 2 }, Pos { row: 10, col: 2 }])
