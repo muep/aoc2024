@@ -1,5 +1,7 @@
-use std::io::{BufRead, BufReader, Read};
+use std::collections::HashMap;
+use std::io::Read;
 use std::iter::repeat;
+use std::ops::AddAssign;
 
 enum LoadNext {
     ContentForFile(u16),
@@ -61,6 +63,86 @@ fn fragment(mut disk: Vec<Option<u16>>) -> Vec<Option<u16>> {
     disk
 }
 
+fn frees(disk: &Vec<Option<u16>>) -> Vec<(usize, usize)> {
+    disk.iter()
+        .copied()
+        .enumerate()
+        .fold(Vec::new(), |mut v, (pos, block)| {
+            let after_last_free = v.last().map(|(pos, len)| pos + len).unwrap_or(pos);
+
+            if block.is_none() {
+                if pos == after_last_free {
+                    match v.last_mut() {
+                        Some((_, len)) => len.add_assign(1),
+                        None => v.push((pos, 1)),
+                    }
+                } else {
+                    v.push((pos, 1))
+                }
+            }
+
+            v
+        })
+}
+
+fn file_map(disk: &Vec<Option<u16>>) -> HashMap<u16, (usize, usize)> {
+    disk.iter()
+        .copied()
+        .enumerate()
+        .fold(HashMap::new(), |mut m, (pos, block)| {
+            let file_id = match block {
+                Some(i) => i,
+                None => return m,
+            };
+
+            match m.get_mut(&file_id) {
+                Some((file_start, file_len)) => {
+                    assert!(pos == *file_start + *file_len);
+                    file_len.add_assign(1);
+                }
+                None => {
+                    m.insert(file_id, (pos, 1));
+                }
+            }
+
+            m
+        })
+}
+
+fn defragment(mut disk: Vec<Option<u16>>) -> Vec<Option<u16>> {
+    let mut fmap = file_map(&disk);
+
+    for file_id in (0..=fmap.keys().copied().max().unwrap()).rev() {
+        let (file_pos, file_len) = fmap.get(&file_id).unwrap().clone();
+        let free_pos = frees(&disk)
+            .iter()
+            .copied()
+            .find(|(_, len)| *len >= file_len)
+            .map(|(pos, _)| pos);
+
+        let free_pos = match free_pos {
+            Some(p) => {
+                if p > file_pos {
+                    continue;
+                } else {
+                    p
+                }
+            }
+            None => {
+                continue;
+            }
+        };
+
+        for n in 0..file_len {
+            disk.swap(free_pos + n, file_pos + n);
+        }
+
+        fmap.insert(file_id, (free_pos, file_len));
+    }
+
+    disk
+}
+
 fn part1(input: &mut dyn Read) -> u64 {
     fragment(load(input))
         .into_iter()
@@ -69,8 +151,12 @@ fn part1(input: &mut dyn Read) -> u64 {
         .sum()
 }
 
-fn part2(input: &mut dyn Read) -> u32 {
-    BufReader::new(input).lines().count() as u32
+fn part2(input: &mut dyn Read) -> u64 {
+    defragment(load(input))
+        .into_iter()
+        .enumerate()
+        .map(|(pos, id)| id.map(|n| n as u64 * pos as u64).unwrap_or(0))
+        .sum()
 }
 
 pub fn run_part1(input: &mut dyn Read) {
@@ -111,6 +197,69 @@ mod tests {
     }
 
     #[test]
+    fn test_file_map() {
+        let mut f = File::open("input/d09-e.txt").unwrap();
+        let disk = load(&mut f);
+        let fmap = file_map(&disk);
+
+        let mut fmap_sorted = fmap.into_iter().collect::<Vec<(u16, (usize, usize))>>();
+        fmap_sorted.sort_by_key(|(k, _)| *k);
+
+        assert_eq!(
+            fmap_sorted,
+            vec![
+                (0, (0, 2)),
+                (1, (5, 3)),
+                (2, (11, 1)),
+                (3, (15, 3)),
+                (4, (19, 2)),
+                (5, (22, 4)),
+                (6, (27, 4)),
+                (7, (32, 3)),
+                (8, (36, 4)),
+                (9, (40, 2))
+            ]
+        );
+    }
+
+    #[test]
+    fn test_frees() {
+        let mut f = File::open("input/d09-e.txt").unwrap();
+        let disk = load(&mut f);
+        let free_sections = frees(&disk);
+
+        assert_eq!(
+            free_sections,
+            vec![
+                (2, 3),
+                (8, 3),
+                (12, 3),
+                (18, 1),
+                (21, 1),
+                (26, 1),
+                (31, 1),
+                (35, 1)
+            ]
+        )
+    }
+
+    #[test]
+    fn test_defragment() {
+        let mut f = File::open("input/d09-e.txt").unwrap();
+        let disk = defragment(load(&mut f));
+
+        assert_eq!(
+            String::from_utf8(
+                disk.into_iter()
+                    .map(|b| b.map(|n| b'0' + n as u8).unwrap_or(b'.'))
+                    .collect::<Vec<u8>>()
+            )
+            .unwrap(),
+            String::from("00992111777.44.333....5555.6666.....8888..")
+        );
+    }
+
+    #[test]
     fn test_load_full() {
         let mut f = File::open("input/d09-f.txt").unwrap();
         let disk = load(&mut f);
@@ -133,15 +282,15 @@ mod tests {
 
     #[test]
     fn test_part2_example() {
-        let mut f = File::open("input/d00-e.txt").unwrap();
+        let mut f = File::open("input/d09-e.txt").unwrap();
         let result = part2(&mut f);
-        assert_eq!(result, 0);
+        assert_eq!(result, 2858);
     }
 
     #[test]
     fn test_part2_full() {
-        let mut f = File::open("input/d00-f.txt").unwrap();
+        let mut f = File::open("input/d09-f.txt").unwrap();
         let result = part2(&mut f);
-        assert_eq!(result, 0);
+        assert_eq!(result, 6415163624282);
     }
 }
