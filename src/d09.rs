@@ -1,5 +1,5 @@
 use std::io::{BufRead, BufReader, Read};
-use std::iter::{repeat, successors};
+use std::iter::repeat;
 
 enum LoadNext {
     ContentForFile(u16),
@@ -35,46 +35,38 @@ fn load(input: &mut dyn Read) -> Vec<Option<u16>> {
         .1
 }
 
-fn fragment(mut disk: Vec<Option<u16>>) -> (bool, Vec<Option<u16>>) {
-    let next_free = disk
+fn fragment(mut disk: Vec<Option<u16>>) -> Vec<Option<u16>> {
+    let frees = disk
         .iter()
         .copied()
         .enumerate()
-        .find(|(_, slot)| slot.is_none())
-        .map(|(pos, _)| pos)
-        .unwrap_or(0);
-
-    let next_to_move = disk
+        .filter(|(_, block)| block.is_none())
+        .map(|(pos, _)| pos);
+    let to_move = disk
         .iter()
         .copied()
         .enumerate()
-        .rfind(|(_, slot)| slot.is_some())
-        .map(|(pos, _)| pos)
-        .unwrap_or(0);
+        .rev()
+        .filter(|(_, block)| block.is_some())
+        .map(|(pos, _)| pos);
 
-    if next_free >= next_to_move {
-        return (false, disk);
+    for (a, b) in frees
+        .zip(to_move)
+        .filter(|(a, b)| a < b)
+        .collect::<Vec<(usize, usize)>>()
+    {
+        disk.swap(a, b);
     }
 
-    disk.swap(next_to_move, next_free);
-    (true, disk)
+    disk
 }
 
 fn part1(input: &mut dyn Read) -> u64 {
-    successors(Some(load(input)), |disk| {
-        let (did_change, disk) = fragment(disk.clone());
-        if did_change {
-            Some(disk)
-        } else {
-            None
-        }
-    })
-    .last()
-    .unwrap()
-    .into_iter()
-    .enumerate()
-    .map(|(pos, id)| id.map(|n| n as u64 * pos as u64).unwrap_or(0))
-    .sum()
+    fragment(load(input))
+        .into_iter()
+        .enumerate()
+        .map(|(pos, id)| id.map(|n| n as u64 * pos as u64).unwrap_or(0))
+        .sum()
 }
 
 fn part2(input: &mut dyn Read) -> u32 {
