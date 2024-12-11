@@ -114,11 +114,11 @@ fn check_params_and_ops(params: &[u64], ops: &[Op], result: u64) -> bool {
 }
 
 fn part(ops: Vec<Op>, input: &mut dyn Read) -> u64 {
-    use rayon::iter::{IntoParallelIterator,ParallelIterator};
+    use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     let lines = BufReader::new(input)
         .lines()
-        .map(|l|l.unwrap())
+        .map(|l| l.unwrap())
         .collect::<Vec<String>>();
 
     lines
