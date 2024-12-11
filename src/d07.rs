@@ -114,9 +114,16 @@ fn check_params_and_ops(params: &[u64], ops: &[Op], result: u64) -> bool {
 }
 
 fn part(ops: Vec<Op>, input: &mut dyn Read) -> u64 {
-    BufReader::new(input)
+    use rayon::iter::{IntoParallelIterator, ParallelIterator};
+
+    let lines = BufReader::new(input)
         .lines()
-        .map(|l| equation_from_line(&l.unwrap()))
+        .map(|l| l.unwrap())
+        .collect::<Vec<String>>();
+
+    lines
+        .into_par_iter()
+        .map(|l| equation_from_line(&l))
         .filter(|(result, params)| {
             Candidates::with_ops_and_count(ops.clone(), params.len() - 1)
                 .into_iter()
