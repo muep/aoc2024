@@ -63,26 +63,25 @@ fn fragment(mut disk: Vec<Option<u16>>) -> Vec<Option<u16>> {
     disk
 }
 
-fn frees(disk: &Vec<Option<u16>>) -> Vec<(usize, usize)> {
+fn first_free(disk: &Vec<Option<u16>>, min_size: usize) -> Option<(usize, usize)> {
     disk.iter()
         .copied()
         .enumerate()
-        .fold(Vec::new(), |mut v, (pos, block)| {
-            let after_last_free = v.last().map(|(pos, len)| pos + len).unwrap_or(pos);
-
-            if block.is_none() {
-                if pos == after_last_free {
-                    match v.last_mut() {
-                        Some((_, len)) => len.add_assign(1),
-                        None => v.push((pos, 1)),
-                    }
-                } else {
-                    v.push((pos, 1))
+        .scan(None, |current, (pos, block)| {
+            match (*current, block) {
+                (None, None) => {
+                    *current = Some((pos, 1usize));
+                }
+                (Some((pos, len)), None) => {
+                    *current = Some((pos, len + 1));
+                }
+                (_, Some(_)) => {
+                    *current = None;
                 }
             }
-
-            v
+            Some(current.unwrap_or((0, 0)))
         })
+        .find(|(_, len)| *len >= min_size)
 }
 
 fn file_map(disk: &Vec<Option<u16>>) -> HashMap<u16, (usize, usize)> {
@@ -114,11 +113,7 @@ fn defragment(mut disk: Vec<Option<u16>>) -> Vec<Option<u16>> {
 
     for file_id in (0..=fmap.keys().copied().max().unwrap()).rev() {
         let (file_pos, file_len) = fmap.get(&file_id).unwrap().clone();
-        let free_pos = frees(&disk)
-            .iter()
-            .copied()
-            .find(|(_, len)| *len >= file_len)
-            .map(|(pos, _)| pos);
+        let free_pos = first_free(&disk, file_len).map(|(pos, _)| pos);
 
         let free_pos = match free_pos {
             Some(p) => {
@@ -223,24 +218,14 @@ mod tests {
     }
 
     #[test]
-    fn test_frees() {
+    fn test_first_free() {
         let mut f = File::open("input/d09-e.txt").unwrap();
         let disk = load(&mut f);
-        let free_sections = frees(&disk);
 
-        assert_eq!(
-            free_sections,
-            vec![
-                (2, 3),
-                (8, 3),
-                (12, 3),
-                (18, 1),
-                (21, 1),
-                (26, 1),
-                (31, 1),
-                (35, 1)
-            ]
-        )
+        assert_eq!(Some((2, 1)), first_free(&disk, 1));
+        assert_eq!(Some((2, 2)), first_free(&disk, 2));
+        assert_eq!(Some((2, 3)), first_free(&disk, 3));
+        assert_eq!(None, first_free(&disk, 4));
     }
 
     #[test]
